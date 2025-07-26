@@ -58,8 +58,10 @@
                 line-height: 1.5;
                 resize: vertical;
                 background-color: white;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-                transition: border-color 0.2s, box-shadow 0.2s;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+                transition:
+                    border-color 0.2s,
+                    box-shadow 0.2s;
             }
 
             textarea:focus {
@@ -72,7 +74,7 @@
                 background-color: white;
                 padding: 1.5rem;
                 border-radius: var(--border-radius);
-                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
                 margin: 2rem 0;
                 font-size: 14px;
                 border: 1px solid #ddd;
@@ -120,7 +122,7 @@
                 font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
                 font-size: 14px;
                 border: 1px solid #ddd;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
             }
 
             .comparison-result {
@@ -175,15 +177,17 @@
             <div id="rebuiltText"></div>
         </div>
 
-        <script type="module">
-            import { diffWords } from 'https://cdn.skypack.dev/diff';
+        <script src="diff-match-patch.js"></script>
+        <script>
+            const textAInput = document.getElementById("textA");
+            const textBInput = document.getElementById("textB");
+            const showDiffButton = document.getElementById("showDiffButton");
+            const rebuildTextButton = document.getElementById("rebuildTextButton");
+            const output = document.getElementById("diffOutput");
+            const rebuiltText = document.getElementById("rebuiltText");
 
-            const textAInput = document.getElementById('textA');
-            const textBInput = document.getElementById('textB');
-            const showDiffButton = document.getElementById('showDiffButton');
-            const rebuildTextButton = document.getElementById('rebuildTextButton');
-            const output = document.getElementById('diffOutput');
-            const rebuiltText = document.getElementById('rebuiltText');
+            // diff-match-patchインスタンスを作成
+            const dmp = new diff_match_patch();
 
             // 初期テキストを設定
             textAInput.value = `package main
@@ -229,55 +233,64 @@ func main() {
             function updateDiff() {
                 const textA = textAInput.value;
                 const textB = textBInput.value;
-                const diff = diffWords(textA, textB);
 
-                output.innerHTML = '';
-                diff.forEach(part => {
-                    const span = document.createElement('span');
-                    if (part.added) {
-                        span.className = 'added';
-                    } else if (part.removed) {
-                        span.className = 'removed';
+                // diff-match-patchを使用して差分を計算
+                const diffs = dmp.diff_main(textA, textB);
+                dmp.diff_cleanupSemantic(diffs);
+
+                output.innerHTML = "";
+                diffs.forEach((diff) => {
+                    const span = document.createElement("span");
+                    if (diff[0] === 1) {
+                        // 追加
+                        span.className = "added";
+                    } else if (diff[0] === -1) {
+                        // 削除
+                        span.className = "removed";
                     }
-                    span.innerHTML = part.value.replace(/\n/g, '<br>').replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;').replace(/ /g, '&nbsp;');
+                    span.innerHTML = diff[1].replace(/\n/g, "<br>").replace(/\t/g, "&nbsp;&nbsp;&nbsp;&nbsp;").replace(/ /g, "&nbsp;");
                     output.appendChild(span);
                 });
             }
 
-            showDiffButton.addEventListener('click', updateDiff);
+            showDiffButton.addEventListener("click", updateDiff);
 
-            rebuildTextButton.addEventListener('click', () => {
+            rebuildTextButton.addEventListener("click", () => {
                 const textA = textAInput.value;
                 const textB = textBInput.value;
-                const diff = diffWords(textA, textB);
-                let rebuiltText = '';
 
-                diff.forEach(part => {
-                    if (part.added) {
-                        rebuiltText += part.value;
-                    } else if (!part.removed) {
-                        rebuiltText += part.value;
+                // diff-match-patchを使用して差分を計算
+                const diffs = dmp.diff_main(textA, textB);
+                dmp.diff_cleanupSemantic(diffs);
+
+                let rebuiltText = "";
+
+                diffs.forEach((diff) => {
+                    if (diff[0] === 1 || diff[0] === 0) {
+                        // 追加または変更なし
+                        rebuiltText += diff[1];
                     }
+                    // 削除（diff[0] === -1）は再生成テキストに含めない
                 });
 
-                const rebuiltTextElement = document.getElementById('rebuiltText');
-                rebuiltTextElement.innerHTML = rebuiltText.replace(/\n/g, '<br>').replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;').replace(/ /g, '&nbsp;');
+                const rebuiltTextElement = document.getElementById("rebuiltText");
+                rebuiltTextElement.innerHTML = rebuiltText.replace(/\n/g, "<br>").replace(/\t/g, "&nbsp;&nbsp;&nbsp;&nbsp;").replace(/ /g, "&nbsp;");
 
                 // 比較結果を表示
-                const comparisonResult = document.createElement('div');
-                comparisonResult.className = 'comparison-result';
+                const comparisonResult = document.createElement("div");
+                comparisonResult.className = "comparison-result";
 
                 if (rebuiltText === textB) {
-                    comparisonResult.className += ' match';
-                    comparisonResult.textContent = '✅ 再生成されたテキストは入力Bと一致しています';
+                    comparisonResult.className += " match";
+                    comparisonResult.textContent = "✅ 再生成されたテキストは入力Bと一致しています";
                 } else {
-                    comparisonResult.className += ' mismatch';
-                    comparisonResult.textContent = '❌ 再生成されたテキストは入力Bと一致していません';
+                    comparisonResult.className += " mismatch";
+                    comparisonResult.textContent = "❌ 再生成されたテキストは入力Bと一致していません";
                 }
 
                 // 既存の比較結果があれば削除
                 const existingResult = rebuiltTextElement.nextElementSibling;
-                if (existingResult && existingResult.className.includes('comparison-result')) {
+                if (existingResult && existingResult.className.includes("comparison-result")) {
                     existingResult.remove();
                 }
 
